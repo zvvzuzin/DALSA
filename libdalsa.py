@@ -26,18 +26,19 @@ class Camera:
         # get image parameters - returns python object of params
         self.params = self.ctx.GevGetImageParameters()
         self.ctx.GevInitializeImageTransfer(1)
-        print("Initial image parameters:")
-        print(self.params)
+        # self.ctx.GevStartImageTransfer(-1)
+        # print("Initial image parameters:")
+        # print(self.params)
         return status
 
     def disconnect(self):
-
+        self.ctx.GevStopImageTransfer()
         status = self.ctx.GevCloseCamera()
         return status
 
     def get_image(self):
 
-        self.ctx.GevStartImageTransfer(0)
+        # self.ctx.GevStartImageTransfer(0)
         img = self.ctx.GevGetImageBuffer().reshape(self.params['height'], self.params['width'])
         # self.ctx.GevStopImageTransfer()
         return img

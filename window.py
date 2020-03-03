@@ -1,54 +1,83 @@
+#!/usr/bin/env python3
+
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel
+from datetime import datetime
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel, QCheckBox
 from PyQt5.QtGui import QIcon, QPixmap, QImage
+from time import sleep
 from PyQt5.QtCore import pyqtSlot, QCoreApplication, QThread
+
 import libdalsa
-
-# class Getting_Images(QThread):
-#     def __init__(self):
-#         QThread.__init__(self)
-#
-#     def __del__(self):
-#         self.wait()
-#
-#     def initial(self):
-#         self.cmrs = libdalsa.Camera()
-#         self.flag_connect = False
-#
-#     def connect(self):
-#         if self.flag_connect:
-#             status = self.cmrs.disconnect()
-#             print(status)
-#             self.btn_connect.setText('Connect')
-#             text_line = 'Disconnected'
-#             self.text_connection.setText(text_line)
-#             self.flag_connect = False
-#         else:
-#             status = self.cmrs.connect()
-#             # self.btn_connect.setText('Disconnect')
-#             # print(status)
-#             self.flag_connect = True
-#             # text_line = 'Connected to camera'
-#             # self.text_connection.setText(text_line)
-#             #
-#
-#     def run(self):
+import cv2
 
 
+class GettingImages(QThread):
+    def __init__(self, img: QLabel, text: QLabel, full_size: QCheckBox):
+        QThread.__init__(self)
+        self.snap_image = None
+        self.img = img
+        self.text = text
+        self.full_size = full_size
+        self.running = True
+        self.camera = libdalsa.Camera()
 
-# your logic here
+        text_line = str()
+        if self.camera.ip_info:
+           text_line += 'Found cameras:\n'
+           for num_cmr in self.camera.ip_info.keys():
+               text_line += 'Camera ' + str(num_cmr) + ': ' + self.camera.ip_info[num_cmr] + '\n'
+        self.text.setText(text_line)
+
+
+    def connect(self):
+        if self.camera.connect() == 'OK':
+            text_line = 'Connected to camera'
+            self.text.setText(text_line)
+            return True
+        else:
+            return False
+
+
+    def disconn(self):
+        if self.camera.disconnect() == 'OK':
+            text_line = 'Disconnected'
+            self.text.setText(text_line)
+            return True
+        else:
+            return False
+
+    def snap(self):
+        self.camera.ctx.GevStartImageTransfer(0)
+        self.snap_image = self.camera.get_image()
+        img_resized = self.snap_image.copy()
+        if self.full_size.isChecked():
+            img_resized = cv2.resize(img_resized, (1024, 840))
+        height, width = img_resized.shape
+        bytes_per_line = 1 * width
+        self.img.setPixmap(QPixmap(QImage(img_resized, width, height, bytes_per_line, QImage.Format_Grayscale8)))
+
+    def run(self):
+        self.camera.ctx.GevStartImageTransfer(-1)
+        while self.running:
+            self.snap_image = self.camera.get_image()
+            img_resized = self.snap_image.copy()
+            if self.full_size.isChecked():
+                img_resized = cv2.resize(img_resized, (1024, 840))
+            height, width = img_resized.shape
+            bytes_per_line = 1 * width
+            self.img.setPixmap(QPixmap(QImage(img_resized, width, height, bytes_per_line, QImage.Format_Grayscale8)))
+            sleep(5e-3)
+        self.camera.ctx.GevStopImageTransfer()
+
 
 class App(QWidget):
     def __init__(self):
         super().__init__()
 
         self.title = 'Определение содержания асбеста'
-        # self.left = 10
-        # self.top = 10
-        # self.width = 1920
-        # self.height = 1080
-        self.initUI()
 
+        self.thread = None
+        self.initUI()
 
     def initUI(self):
         self.setWindowTitle(self.title)
@@ -58,10 +87,9 @@ class App(QWidget):
         self.image.move(500, 10)
         self.image.resize(1024, 840)
 
-        self.flag_connect = False
         self.text_connection = QLabel(self)
         self.text_connection.setGeometry(10, 10, 300, 100)
-        self.text_connection.move(250, 20)
+        self.text_connection.move(250, 10)
         self.text_connection.setText('Disconnected')
 
         self.btn_init = QPushButton('Initialize', self)
@@ -71,79 +99,85 @@ class App(QWidget):
         self.btn_init.clicked.connect(self.initialize)
 
         self.btn_connect = QPushButton('Connect', self)
+        self.btn_connect.setDisabled(True)
         self.btn_connect.setGeometry(10, 10, 200, 40)
         self.btn_connect.setToolTip('Connect to camera')
         self.btn_connect.move(10, 70)
         self.btn_connect.clicked.connect(self.connect)
 
         self.btn_snap = QPushButton('Snap image', self)
+        self.btn_snap.setDisabled(True)
         self.btn_snap.setGeometry(10, 10, 200, 40)
-        self.btn_snap.setToolTip('Connect to camera')
+        self.btn_snap.setToolTip('Snap image')
         self.btn_snap.move(10, 130)
         self.btn_snap.clicked.connect(self.snap)
 
         self.btn_rt = QPushButton('Real-time START', self)
+        self.btn_rt.setDisabled(True)
         self.btn_rt.setGeometry(10, 10, 200, 40)
-        self.btn_rt.setToolTip('Connect to camera')
+        self.btn_rt.setToolTip('Start/stop realtime')
         self.btn_rt.move(10, 190)
         self.btn_rt.clicked.connect(self.realtime)
+
+        self.btn_save_img = QPushButton('Save Image', self)
+        self.btn_save_img.setDisabled(True)
+        self.btn_save_img.setGeometry(10, 10, 200, 40)
+        self.btn_save_img.setToolTip('Save image')
+        self.btn_save_img.move(10, 250)
+        self.btn_save_img.clicked.connect(self.save_image)
 
         self.btn_quit = QPushButton('Quit', self)
         self.btn_quit.setGeometry(10, 10, 200, 40)
         self.btn_quit.clicked.connect(QCoreApplication.quit)
         self.btn_quit.move(10, 800)
 
+        self.chk_img_size = QCheckBox('Full size in frame', self)
+        # self.chk_img_size.setGeometry(10, 10, 100, 40)
+        self.chk_img_size.move(10, 750)
         # self.showMaximized()
-        self.show()
 
+        self.show()
 
     @pyqtSlot()
     def initialize(self):
-        self.cmrs = libdalsa.Camera()
-        text_line = str()
-        if self.cmrs.ip_info:
-            text_line += 'Found cameras:\n'
-            for num_cmr in self.cmrs.ip_info.keys():
-                text_line += 'Camera ' + str(num_cmr) + ': ' + self.cmrs.ip_info[num_cmr] + '\n'
-        self.text_connection.setText(text_line)
-
+        print('Init')
+        self.thread = GettingImages(self.image, self.text_connection, self.chk_img_size)
+        self.btn_connect.setEnabled(True)
+        self.btn_save_img.setDisabled(True)
 
     @pyqtSlot()
     def connect(self):
-        if self.flag_connect:
-            status = self.cmrs.disconnect()
-            print(status)
-            self.btn_connect.setText('Connect')
-            text_line = 'Disconnected'
-            self.text_connection.setText(text_line)
-            self.flag_connect = False
-        else:
-            status = self.cmrs.connect()
-            self.btn_connect.setText('Disconnect')
-            print(status)
-            self.flag_connect = True
-            text_line = 'Connected to camera'
-            self.text_connection.setText(text_line)
-
+        if self.btn_connect.text() == 'Disconnect':
+            if self.thread.disconn():
+                self.btn_connect.setText('Connect')
+                self.btn_snap.setDisabled(True)
+                self.btn_rt.setDisabled(True)
+        elif self.btn_connect.text() == 'Connect':
+            if self.thread.connect():
+                self.btn_connect.setText('Disconnect')
+                self.btn_snap.setEnabled(True)
+                self.btn_rt.setEnabled(True)
 
     @pyqtSlot()
     def snap(self):
-        img = self.cmrs.get_image()
-        height, width = img.shape
-        bytesPerLine = 1 * width
-        self.image.setPixmap(QPixmap(QImage(img, width, height, bytesPerLine, QImage.Format_Grayscale8)))
-
+        self.thread.snap()
+        self.btn_save_img.setEnabled(True)
 
     @pyqtSlot()
     def realtime(self):
-        self.btn_rt.setText('Real-time STOP')
-        img = self.cmrs.get_image()
-        height, width = img.shape
-        bytesPerLine = 1 * width
-        while True:
-            img = self.cmrs.get_image()
-            self.image.setPixmap(QPixmap(QImage(img, width, height, bytesPerLine, QImage.Format_Grayscale8)))
-            self.show()
+        if self.btn_rt.text().endswith('START'):
+            self.thread.running = True
+            self.thread.start()
+            self.btn_rt.setText('Real-time STOP')
+        elif self.btn_rt.text().endswith('STOP'):
+            self.thread.running = False
+            self.btn_rt.setText('Real-time START')
+        self.btn_save_img.setEnabled(True)
+
+    def save_image(self):
+        if hasattr(self.thread.snap_image, 'shape'):
+            cv2.imwrite('images/' + datetime.now().strftime("%H:%M:%S %d-%m-%Y") + '.png', self.thread.snap_image)
+            # print(datetime())
 
 
 if __name__ == '__main__':
