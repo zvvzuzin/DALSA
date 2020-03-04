@@ -24,7 +24,11 @@ class Camera:
 
         status = self.ctx.GevOpenCamera()
         # get image parameters - returns python object of params
-        self.params = self.ctx.GevGetImageParameters()
+        self.image_params = self.ctx.GevGetImageParameters()
+        # self.camera_params = self.ctx.GevGetCameraInterfaceOptions()
+        # self.info = self.ctx.GevGetCameraList()
+        # self.camera_options = self.ctx.GevGetLibraryConfigOptions()
+        # self.ctx.
         self.ctx.GevInitializeImageTransfer(1)
         # self.ctx.GevStartImageTransfer(-1)
         # print("Initial image parameters:")
@@ -39,6 +43,6 @@ class Camera:
     def get_image(self):
 
         # self.ctx.GevStartImageTransfer(0)
-        img = self.ctx.GevGetImageBuffer().reshape(self.params['height'], self.params['width'])
+        img = self.ctx.GevGetImageBuffer().reshape(self.image_params['height'], self.image_params['width'])
         # self.ctx.GevStopImageTransfer()
         return img
