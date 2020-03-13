@@ -187,6 +187,7 @@ class App(QWidget):
         self.chk_img_size = QCheckBox('Full size in frame', self)
         # self.chk_img_size.setGeometry(10, 10, 100, 40)
         self.chk_img_size.move(10, 760)
+        self.chk_img_size.setChecked(True)
         # self.showMaximized()
 
         self.show()

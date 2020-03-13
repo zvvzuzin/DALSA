@@ -1,5 +1,7 @@
 from pygigev import PyGigEV as gev
 import timeit
+from time import sleep
+import numpy as np
 import cv2
 
 # create new context to store native camera data
@@ -48,9 +50,10 @@ ctx.GevStartImageTransfer(-1)
 while(True):
     # simply return numpy array for first image in buffer
     img = ctx.GevGetImageBuffer().reshape(height, width) # is there a more efficient way to reshape?
+    # sleep(1e-1)
     if width > 600 or height > 600:
         img = cv2.resize(img, (int(width*0.25),int(height*0.25)))
-    cv2.imshow('pyGigE-V', img)
+    cv2.imshow('1', np.random.randint(0, 255, 64*64).reshape(64, 64))
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
